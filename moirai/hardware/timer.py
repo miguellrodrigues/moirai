@@ -27,25 +27,16 @@ class Finished(Exception):
     pass
 
 
-class Timer():
+class Timer:
     def __init__(self, seconds, interval):
-        self.seconds = seconds
+        self.seconds = seconds + 1
         self.interval = interval
-        self.start = time.time()
-        self.t = time.time()
+        self.start = time.perf_counter()
 
     def sleep(self):
-        current_time = time.time()
-        if current_time - self.start > self.seconds:
-            raise Finished('Maximum time reached. Finished.')
-        nextTime = current_time + self.interval
-        nextTime -= (nextTime % self.interval)
-        self.t = time.time()
-        dt = nextTime - self.t
-        if dt < 0:
-            dt = 0
-            print('Negative Δt in timer. Interval too short?')
-        time.sleep(dt)
+        elapsed = time.perf_counter() - self.start
+        sleep_time = (self.interval - (elapsed % self.interval)) % self.interval
+        time.sleep(sleep_time)
 
     def elapsed(self):
-        return time.time() - self.start
+        return time.perf_counter() - self.start

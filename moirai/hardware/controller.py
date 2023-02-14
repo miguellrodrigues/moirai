@@ -75,7 +75,7 @@ class Controller(object):
             except Exception as err:
                 error = err.__class__.__name__
                 detail = err.args[0]
-                cl, exc, tb = sys.exc_info()
+                _, _, tb = sys.exc_info()
                 tb = self.stringify_tb(traceback.extract_tb(tb))
                 error_string = '%s: %s\n%s' % (error, detail, tb)
                 print(error_string)
@@ -116,7 +116,7 @@ class Controller(object):
                 except Exception as err:
                     error = err.__class__.__name__
                     detail = err.args[0]
-                    cl, exc, tb = sys.exc_info()
+                    _, _, tb = sys.exc_info()
                     tb = self.stringify_tb(traceback.extract_tb(tb))
                     error_string = '%s: %s\n%s' % (error, detail, tb)
                     print(error_string)
@@ -129,6 +129,9 @@ class Controller(object):
 
         after = None
         self.running = True
+
+        run_time = int(self.cs['runTime'])
+        interval = float(self.cs['tau'])
 
         try:
             scope = 'before'
@@ -143,6 +146,8 @@ class Controller(object):
             thread.start()
             thread.isDaemon = True
 
+            samples = int(run_time / interval) + 1
+
             inputs = {s: self.hardware.read(s) for s in self.cs['inputs']}
             plocals = {
                 'inputs': inputs,
@@ -150,7 +155,8 @@ class Controller(object):
                 's': dict(),
                 'dt': float(self.cs['tau']),
                 'np': np,
-                'math': math
+                'math': math,
+                'samples': samples,
             }
 
             for k, v in self.off_values.items():
@@ -163,15 +169,17 @@ class Controller(object):
             for k, v in plocals['outputs'].items():
                 self.hardware.write(k, v)
 
-            run_time = int(self.cs['runTime'])
-            interval = float(self.cs['tau'])
             t = Timer(run_time, interval)
             start_time = datetime.datetime.utcnow()
-            time = 0
             graph_id = self.db.save_test(self.cs['name'], start_time)
+            current_sample = 0
 
-            while self.db.get_setting(
-                    'current_test') is not None and self.running:
+            t.sleep()
+            time = t.elapsed()
+
+            dt0 = time
+
+            while (self.db.get_setting('current_test') is not None) and (self.running) and (current_sample < samples):
                 self.lock.acquire()
                 inputs = {s: self.hardware.read(s) for s in self.cs['inputs']}
                 self.lock.release()
@@ -181,11 +189,14 @@ class Controller(object):
                     'outputs': dict(),
                     's': state,
                     'log': dict(),
-                    't': time,
+                    't': time-dt0,
                     'dt': interval,
+                    'sample': current_sample,
                     'np': np,
-                    'math': math
+                    'math': math,
                 }
+
+                current_sample += 1
 
                 exec(controller, plocals, plocals)
 
@@ -200,7 +211,8 @@ class Controller(object):
                     self.hardware.write(k, v)
 
                 for k, v in plocals['log'].items():
-                    self.db.save_test_sensor_value(graph_id, k, v, time)
+                    self.db.save_test_sensor_value(graph_id, k, v, time-dt0)
+
                 self.lock.release()
 
                 state = plocals['s']
@@ -219,7 +231,7 @@ class Controller(object):
         except Exception as err:
             error = err.__class__.__name__
             detail = err.args[0]
-            cl, exc, tb = sys.exc_info()
+            _, _, tb = sys.exc_info()
             tb = self.stringify_tb(traceback.extract_tb(tb))
             error_string = '%s: %s\n%s' % (error, detail, tb)
             print(error_string)
@@ -232,7 +244,8 @@ class Controller(object):
                     'inputs': inputs,
                     'outputs': dict(),
                     'np': np,
-                    'math': math
+                    'math': math,
+                    's': state,
                 }
 
                 exec(after, plocals, plocals)
@@ -245,7 +258,7 @@ class Controller(object):
         except Exception as err:
             error = err.__class__.__name__
             detail = err.args[0]
-            cl, exc, tb = sys.exc_info()
+            _, _, tb = sys.exc_info()
             tb = self.stringify_tb(traceback.extract_tb(tb))
             error_string = '%s: %s\n%s' % (error, detail, tb)
             print(error_string)
