@@ -173,11 +173,7 @@ class Controller(object):
             start_time = datetime.datetime.utcnow()
             graph_id = self.db.save_test(self.cs['name'], start_time)
             current_sample = 0
-
-            t.sleep()
-            time = t.elapsed()
-
-            dt0 = time
+            time = 0.
 
             while (self.db.get_setting('current_test') is not None) and (self.running) and (current_sample < samples):
                 self.lock.acquire()
@@ -189,7 +185,7 @@ class Controller(object):
                     'outputs': dict(),
                     's': state,
                     'log': dict(),
-                    't': time-dt0,
+                    't': time,
                     'dt': interval,
                     'sample': current_sample,
                     'np': np,
@@ -211,7 +207,7 @@ class Controller(object):
                     self.hardware.write(k, v)
 
                 for k, v in plocals['log'].items():
-                    self.db.save_test_sensor_value(graph_id, k, v, time-dt0)
+                    self.db.save_test_sensor_value(graph_id, k, v, time)
 
                 self.lock.release()
 

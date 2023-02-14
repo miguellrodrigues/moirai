@@ -29,7 +29,7 @@ class Finished(Exception):
 
 class Timer:
     def __init__(self, seconds, interval):
-        self.seconds = seconds + 1
+        self.seconds = seconds
         self.interval = interval
         self.start = time.perf_counter()
 
